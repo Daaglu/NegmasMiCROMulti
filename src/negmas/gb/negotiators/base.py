@@ -9,6 +9,7 @@ from negmas.preferences.preferences import Preferences
 
 from ...negotiators import Controller, Negotiator
 from ...outcomes import Outcome
+
 from ..common import GBNMI, GBState, ResponseType, ThreadState
 from ...common import NegotiatorMechanismInterface, MechanismState
 
@@ -208,6 +209,7 @@ class GBNegotiator(Negotiator[GBNMI, GBState], Generic[TNMI, TState]):
         )
 
     def _gb_state_from_sao_state(self, state: SAOState) -> GBState:
+        from negmas.gb.common import GBState
         if isinstance(state, GBState):
             return state
         if not self.nmi:

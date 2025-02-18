@@ -20,7 +20,8 @@ if TYPE_CHECKING:
     from negmas.gb.negotiators.base import GBNegotiator
     from negmas.outcomes import Outcome
 
-    from .offering import MiCROOfferingPolicy, OfferingPolicy
+    from .offering import MiCROOfferingPolicy, OfferingPolicy, MiCROOfferingPolicyMulti
+
 
 __all__ = [
     "LimitedOutcomesAcceptancePolicy",
@@ -48,6 +49,8 @@ __all__ = [
     "AcceptAnyRational",
     "AcceptBetterRational",
     "AcceptNotWorseRational",
+    "MiCROAcceptancePolicy",
+    "MiCROAcceptancePolicyMulti"
 ]
 
 
@@ -303,6 +306,36 @@ class MiCROAcceptancePolicy(AcceptancePolicy):
     """
 
     offering_strategy: MiCROOfferingPolicy
+    accept_same: bool = True
+
+    def __call__(self, state, offer, source):
+        if not self.negotiator or not self.negotiator.ufun:
+            return ResponseType.REJECT_OFFER
+        mine = (
+            self.offering_strategy.next_offer()
+            if self.offering_strategy.ready_to_concede()
+            else self.offering_strategy.best_offer_so_far()
+        )
+        if self.negotiator.ufun.is_better(None, mine):
+            mine = None
+        is_acceptable = (
+            self.negotiator.ufun.is_not_worse
+            if self.accept_same
+            else self.negotiator.ufun.is_better
+        )
+        if is_acceptable(offer, mine):
+            return ResponseType.ACCEPT_OFFER
+        return ResponseType.REJECT_OFFER
+
+@define
+class MiCROAcceptancePolicyMulti(AcceptancePolicy):
+    """
+    Implements the ACnext acceptance strategy based on our next offer.
+
+    Accepts $\\omega$ if $\alpha u(my-next-offer) + \beta > u(\\omega)$
+    """
+
+    offering_strategy: MiCROOfferingPolicyMulti
     accept_same: bool = True
 
     def __call__(self, state, offer, source):

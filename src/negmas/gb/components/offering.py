@@ -41,6 +41,7 @@ __all__ = [
     "TFTOfferingPolicy",
     "MiCROOfferingPolicy",
     "TimeBasedOfferingStrategy",
+    "MiCROOfferingPolicyMulti"
 ]
 
 
@@ -602,3 +603,108 @@ class MyWorstConcensusOfferingPolicy(UtilBasedConcensusOfferingPolicy):
 
     def decide_util(self, utils: list[Value]) -> int:
         return min(range(len(utils)), key=lambda x: utils[x])
+
+
+@define
+class MiCROOfferingPolicyMulti(OfferingPolicy):
+    next_indx: int = 0
+    sorter: PresortingInverseUtilityFunction | None = field(repr=False, default=None)
+    _received: dict[str, set[Outcome]] = field(factory=dict)
+    _sent: set[Outcome] = field(factory=set)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not hasattr(self, "_received"):
+            self._received = {}
+
+    def on_preferences_changed(self, changes: list[PreferencesChange]):
+        if not self.negotiator or not self.negotiator.ufun:
+            return
+        if any(
+            _.type
+            not in (
+                PreferencesChangeType.Scale,
+                PreferencesChangeType.ReservedOutcome,
+                PreferencesChangeType.ReservedValue,
+            )
+            for _ in changes
+        ):
+            self.sorter = PresortingInverseUtilityFunction(
+                self.negotiator.ufun, rational_only=True, eps=-1, rel_eps=-1
+            )
+            self.sorter.init()
+            self.next_indx = 0
+            #self._received = {}
+            self._sent = set()
+
+    def sample_sent(self) -> Outcome | None:
+        if not len(self._sent):
+            return None
+        return random.choice(list(self._sent))
+
+    def ensure_sorter(self):
+        if not self.sorter:
+            assert self.negotiator.ufun
+            self.sorter = PresortingInverseUtilityFunction(
+                self.negotiator.ufun, rational_only=True, eps=-1, rel_eps=-1
+            )
+            self.sorter.init()
+        return self.sorter
+
+    def next_offer(self) -> Outcome | None:
+        return self.ensure_sorter().outcome_at(self.next_indx)
+
+    def best_offer_so_far(self) -> Outcome | None:
+        if self.next_indx > 0:
+            return self.ensure_sorter().outcome_at(self.next_indx - 1)
+        return None
+
+    def ready_to_concede(self) -> bool:
+        '''
+        min_received = (
+            min(len(offers) for offers in
+                self._received.values()) if self._received else 0
+        )
+        return offers_sent <= min_received
+
+
+        mean_received = (
+            sum(len(offers) for offers in self._received.values()) / len(self._received)
+            if self._received else 0
+        )
+        return offers_sent <= mean_received
+        '''
+
+        offers_sent = len(self._sent)
+
+
+        max_received = (
+            max(len(offers) for offers in
+                self._received.values()) if self._received else 0
+        )
+        return offers_sent <= max_received
+        #return len(self._sent) <= len(self._received)/self.n_agents
+        #m<n
+
+    def __call__(self,state: GBState) -> Outcome | None:
+        outcome = self.next_offer()
+        assert self.sorter
+        assert self.negotiator.ufun
+        if (
+            outcome is None
+            or self.sorter.utility_at(self.next_indx)
+            < self.negotiator.ufun.reserved_value
+            or not self.ready_to_concede()
+        ):
+            return self.sample_sent()
+        self.next_indx += 1
+        self._sent.add(outcome)
+        return outcome
+
+    def on_partner_proposal(
+        self, state: GBState, partner_id: str, offer: Outcome
+    ) -> None:
+        if partner_id not in self._received:
+            self._received[partner_id] = set()
+        self._received[partner_id].add(offer)
+        return super().on_partner_proposal(state, partner_id, offer)
