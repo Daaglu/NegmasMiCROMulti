@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from attrs import define, field
 
-from negmas import warnings
+from negmas import warnings, ResponseType
 from negmas.common import PreferencesChangeType, Value
 from negmas.negotiators.helpers import PolyAspiration
 from negmas.outcomes.common import ExtendedOutcome
@@ -612,11 +612,6 @@ class MiCROOfferingPolicyMulti(OfferingPolicy):
     _received: dict[str, set[Outcome]] = field(factory=dict)
     _sent: set[Outcome] = field(factory=set)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not hasattr(self, "_received"):
-            self._received = {}
-
     def on_preferences_changed(self, changes: list[PreferencesChange]):
         if not self.negotiator or not self.negotiator.ufun:
             return
@@ -634,7 +629,7 @@ class MiCROOfferingPolicyMulti(OfferingPolicy):
             )
             self.sorter.init()
             self.next_indx = 0
-            #self._received = {}
+            self._received = {}
             self._sent = set()
 
     def sample_sent(self) -> Outcome | None:
@@ -661,32 +656,30 @@ class MiCROOfferingPolicyMulti(OfferingPolicy):
 
     def ready_to_concede(self) -> bool:
         '''
-        min_received = (
-            min(len(offers) for offers in
-                self._received.values()) if self._received else 0
-        )
-        return offers_sent <= min_received
-
-
-        mean_received = (
-            sum(len(offers) for offers in self._received.values()) / len(self._received)
-            if self._received else 0
-        )
-        return offers_sent <= mean_received
-        '''
-
-        offers_sent = len(self._sent)
-
-
         max_received = (
             max(len(offers) for offers in
                 self._received.values()) if self._received else 0
         )
         return offers_sent <= max_received
-        #return len(self._sent) <= len(self._received)/self.n_agents
-        #m<n
 
-    def __call__(self,state: GBState) -> Outcome | None:
+        mean_received = (
+            sum(len(offers) for offers in
+                self._received.values()) / len(self._received) if self._received else 0
+        )
+        return offers_sent <= mean_received
+        '''
+        offers_sent = len(self._sent)
+
+        min_received = (
+        min(len(offers) for offers in
+            self._received.values()) if self._received else 0
+        )
+        return offers_sent <= min_received
+
+    # return len(self._sent) <= len(self._received)/self.n_agents
+        # m<n
+
+    def __call__(self, state: GBState) -> Outcome | None:
         outcome = self.next_offer()
         assert self.sorter
         assert self.negotiator.ufun
@@ -707,4 +700,39 @@ class MiCROOfferingPolicyMulti(OfferingPolicy):
         if partner_id not in self._received:
             self._received[partner_id] = set()
         self._received[partner_id].add(offer)
+        '''
+        print("Partner who is proposing:")
+        print(partner_id)
+        print("Offer proposed:")
+        print(offer)
+        print("Number of offers:")
+        print(len(self._received[partner_id]))
+        '''
         return super().on_partner_proposal(state, partner_id, offer)
+
+    def on_partner_response(
+        self,
+        state: GBState,
+        partner_id: str,
+        outcome: Outcome | None,
+        response: ResponseType,
+    ) -> None:
+        #print("partner who responded:" + partner_id)
+        if partner_id not in self._received:
+            self._received[partner_id] = set()
+        if response != 1:
+            self._received[partner_id].add(outcome)
+            '''
+            print("partner who accepted:" + partner_id)
+            print("offer thats been accepted by partner:")
+            print(outcome)
+            print("len offers sent by partner + accepted: ")
+            print(len(self._received[partner_id]))
+            '''
+        return super().on_partner_response(state, partner_id, outcome, response)
+
+    def add_accepted_offer(
+        self, offer: Outcome
+    ) -> None:
+        if offer not in self._sent:
+            self._sent.add(offer)

@@ -5,7 +5,6 @@ from .modular.mapneg import MAPNegotiator
 
 __all__ = ["MiCRONegotiator"]
 
-
 class MiCRONegotiator(MAPNegotiator):
     """
     Rational Concession Negotiator

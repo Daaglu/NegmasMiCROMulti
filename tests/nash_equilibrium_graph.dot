@@ -1,0 +1,5 @@
+digraph BestResponse {
+  rankdir=LR;
+  "('Atlas3', 'Agreeable', 'PonPoko')" -> "('Agreeable', 'Agreeable', 'PonPoko')" [label="Player 1"];
+  "('Agreeable', 'Agreeable', 'PonPoko')" [shape=doublecircle, color=green, style=filled];
+}

@@ -5,9 +5,6 @@ from .modular.mapneg import MAPNegotiator
 
 __all__ = ["MiCRONegotiatorMulti"]
 
-from ... import MiCROAcceptancePolicyMulti
-
-
 class MiCRONegotiatorMulti(MAPNegotiator):
     """
     Rational Concession Negotiator

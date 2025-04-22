@@ -1,119 +1,44 @@
-import itertools
-import numpy as np
-from negmas.gb.negotiators.timebased import (
-    BoulwareTBNegotiator,
-    ConcederTBNegotiator,
-    LinearTBNegotiator,
-)
-from negmas import make_issue, SAOMechanism
-from negmas.preferences import LinearAdditiveUtilityFunction as LUFun
-from negmas.preferences.value_fun import LinearFun, IdentityFun, AffineFun
 from src.negmas.gb.negotiators.micro_multi import MiCRONegotiatorMulti
-from itertools import permutations
-from negmas.gb.negotiators.timebased import BoulwareTBNegotiator, ConcederTBNegotiator, LinearTBNegotiator
-
-#from negmas.gb.negotiators import MiCRONegotiator
-from src.negmas.gb.negotiators.micro import MiCRONegotiator
-
-from negmas import SAOMechanism, make_issue
-from negmas.preferences import LinearAdditiveUtilityFunction as LUFun
-from negmas.preferences.value_fun import LinearFun, IdentityFun, AffineFun
-import numpy as np
 from pathlib import Path
 from negmas.inout import Scenario
-from negmas.sao.negotiators import AspirationNegotiator
-from negmas.genius.gnegotiators import Atlas3, PonPokoAgent, CaduceusDC16, KakeSoba, AgreeableAgent2018
+from negmas.genius.gnegotiators import Atlas3, PonPokoAgent, CaduceusDC16, AgreeableAgent2018
 import statistics
 import math
 import xml.etree.ElementTree as ET
+from itertools import combinations_with_replacement
+from datetime import datetime
+import networkx as nx
+import matplotlib.pyplot as plt
+import random
 
-def create_utility_functions(outcome_space):
+def create_agents():
     return [
-        LUFun(values={"price": AffineFun(-1.5, bias=15.0), "quantity": LinearFun(0.3),
-                      "delivery_time": AffineFun(-2.0, bias=20.0), "warranty_period": LinearFun(0.4),
-                      "quality": LinearFun(0.8)},
-              weights={"price": 3.0, "quantity": 1.0, "delivery_time": 5.0, "warranty_period": 2.0, "quality": 4.0},
-              outcome_space=outcome_space).scale_max(1.0),
-        LUFun(values={"price": AffineFun(-0.5, bias=8.0), "quantity": LinearFun(0.6),
-                      "delivery_time": AffineFun(-1.0, bias=12.0), "warranty_period": LinearFun(1.5),
-                      "quality": AffineFun(1.0, bias=5.0)},
-              weights={"price": 2.0, "quantity": 3.0, "delivery_time": 2.0, "warranty_period": 4.0, "quality": 3.0},
-              outcome_space=outcome_space).scale_max(1.0),
-        LUFun(values={"price": AffineFun(-2.0, bias=20.0), "quantity": LinearFun(0.1), "delivery_time": IdentityFun(),
-                      "warranty_period": AffineFun(-0.8, bias=10.0), "quality": LinearFun(2.0)},
-              weights={"price": 5.0, "quantity": 1.0, "delivery_time": 2.0, "warranty_period": 1.5, "quality": 5.0},
-              outcome_space=outcome_space).scale_max(1.0),
-        LUFun(values={"price": IdentityFun(), "quantity": AffineFun(1.0, bias=0.0),
-                      "delivery_time": AffineFun(-0.5, bias=5.0), "warranty_period": LinearFun(0.2),
-                      "quality": LinearFun(0.9)},
-              weights={"price": 1.0, "quantity": 2.5, "delivery_time": 1.0, "warranty_period": 0.5, "quality": 3.0},
-              outcome_space=outcome_space).scale_max(1.0),
+        AgreeableAgent2018(name="Agreeable"),
+        PonPokoAgent(name="PonPoko"),
+        Atlas3(name="Atlas3"),
+        MiCRONegotiatorMulti(name="Micro"),
     ]
-
-def run_test():
-    issues = [
-        make_issue(name="price", values=(1, 10)),
-        make_issue(name="quantity", values=(1, 10)),
-        make_issue(name="delivery_time", values=(1, 10)),
-        make_issue(name="warranty_period", values=(1, 10)),
-        make_issue(name="quality", values=(1, 20)),
-    ]
-
-    session = SAOMechanism(issues=issues, time_limit=35)
-    utilities = create_utility_functions(session.outcome_space)
-
-    agent1 = MiCRONegotiator(preferences=utilities[0].scale_max(1.0),name="Micro")
-    agent2 = AgreeableAgent2018(preferences=utilities[2].scale_max(1.0), name="Agreeable")
-    agent3 = KakeSoba(preferences=utilities[1].scale_max(1.0), name="KakeSoba")
-    session.add(agent1)
-    session.add(agent2)
-    session.add(agent3)
-
-    print(session.run())
-    proposer = session.state.current_proposer
-    print(session.extended_trace)
-    if session.agreement is not None:
-        print("Final Agreement:", session.agreement)
-        for i, negotiator in enumerate(session.negotiators):
-            role = "Proposer" if negotiator.id == proposer else "Responder"
-            ufun_value = negotiator.ufun(session.agreement)
-            print(f"{role} - Negotiator '{negotiator.name}' (ID: {negotiator.id}) Utility: {ufun_value:.4f}")
-    else:
-        print("No agreement reached in the session.")
-    #plt = session.plot()
-    #plt.show()
 
 def ANAC2015_scenarios_test():
     scenario_names = [
         "group1-university",
         "group2-dinner",
-        "group2-new_sporthal",
         "group2-politics",
         "group3-bank_robbery",
-        "group4-zoning_plan",
         "group5-car_domain",
         "group6-tram",
-        "group7-movie",
         "group8-holiday",
         "group9-killer_robot",
         "group9-vacation",
-        "group10-building_construction",
-        "group11-car_purchase",
-        "group12-symposium"
-    ]
-
-    #utilities = {"Micro": [], "AgreeableAgent2018": [], "KakeSoba": []}
-    utilities = {"Micro": [], "Atlas3": [], "PonPoko": []}
-    #utilities = {"Micro1": [], "Micro2": [], "Micro3": []}
-
-    #proposer_count = {"Micro": 0, "AgreeableAgent2018": 0, "KakeSoba": 0}
-    proposer_count = {"Micro": 0, "Atlas3": 0, "PonPoko": 0}
-    #proposer_count = {"Micro1": 0, "Micro2": 0, "Micro3": 0}
+        "group11-car_purchase"]
 
 
+    utilities = {"Agreeable": [], "PonPoko": [], "Atlas3": [], "Micro": []}
+    utilities_on_agreement = {"Agreeable": [], "PonPoko": [], "Atlas3": [], "Micro": []}
+    total_sessions = {"Agreeable": 0, "PonPoko": 0, "Atlas3": 0, "Micro": 0}
+    agreements_reached = {"Agreeable": 0, "PonPoko": 0, "Atlas3": 0, "Micro": 0}
+    performance_against_pairs = {}
 
-    total_sessions = 0
-    agreements_reached = 0
     for scenario_name in scenario_names:
         print(f"\nRunning scenario: {scenario_name}")
         scenario_path = Path.home() / "negmas" / "scenarios" / "ANAC2015" / scenario_name
@@ -122,69 +47,181 @@ def ANAC2015_scenarios_test():
         except (ET.ParseError, OSError, ValueError) as e:
             print(f"Skipping scenario '{scenario_name}' due to error: {e}")
             continue
+        agents = create_agents()
+        agent_combinations = list(combinations_with_replacement(agents, 3))
 
-        for preference_set in range(len(scenario.ufuns)):
-            print(f"  Testing preference set {preference_set + 1} of {len(scenario.ufuns)}")
+        for index, (agent1_class, agent2_class, agent3_class) in enumerate(agent_combinations, start=1):
+            print(
+                f"Iteration {index}/{len(agent_combinations)}: Running session for {agent1_class.name}, {agent2_class.name}, {agent3_class.name}")
 
-            session = scenario.make_session(n_steps=100)
+            agent1 = type(agent1_class)(name=agent1_class.name)
+            agent2 = type(agent2_class)(name=agent2_class.name)
+            agent3 = type(agent3_class)(name=agent3_class.name)
 
-            agent1 = MiCRONegotiatorMulti(preferences=scenario.ufuns[preference_set % len(scenario.ufuns)].scale_max(1.0), name="Micro")
-            agent2 = Atlas3(preferences=scenario.ufuns[(preference_set + 1) % len(scenario.ufuns)].scale_max(1.0), name="Atlas3")
-            agent3 = PonPokoAgent(preferences=scenario.ufuns[(preference_set + 2) % len(scenario.ufuns)].scale_max(1.0), name="PonPoko")
-            session.add(agent1)
-            session.add(agent2)
-            session.add(agent3)
+            session = scenario.make_session(time_limit=35)
+
+            session.add(agent1, preferences=scenario.ufuns[0].scale_max(1.0))
+            session.add(agent2, preferences=scenario.ufuns[1].scale_max(1.0))
+            session.add(agent3, preferences=scenario.ufuns[2].scale_max(1.0))
 
             print(session.run())
-            total_sessions = total_sessions + 1
-            proposer = session.state.current_proposer
+            process_session_results(session, utilities, utilities_on_agreement,
+                                    total_sessions, agreements_reached, performance_against_pairs)
 
-            if session.agreement is not None:
-                print("    Final Agreement:", session.agreement)
-                agreements_reached = agreements_reached + 1
-                for negotiator in session.negotiators:
-                    if negotiator.id == proposer:
-                        role = "Proposer"
-                        proposer_count[negotiator.name] += 1
-                    else:
-                        role = "Responder"
-                    ufun_value = negotiator.ufun(session.agreement)
-                    utilities[negotiator.name].append(ufun_value)
-                    print(f"    {role} - Negotiator '{negotiator.name}' (ID: {negotiator.id}) Utility: {ufun_value:.4f}")
-            else:
-                print("    No agreement reached in the session.")
-                for negotiator in session.negotiators:
-                    utilities[negotiator.name].append(0.0)
-            #plt = session.plot()
-            #plt.show()
+    print_utility_statistics(utilities, utilities_on_agreement, total_sessions, agreements_reached)
+    print_performance_against_pairs(performance_against_pairs)
+    return performance_against_pairs
 
-    print("\nUtility Statistics:")
+
+def process_session_results(session, utilities, utilities_on_agreement,
+                            total_sessions, agreements_reached, performance_against_pairs):
+    for negotiator in session.negotiators:
+        agent_name = negotiator.name
+        utility = negotiator.ufun(session.agreement) if session.agreement else negotiator.reserved_value
+
+        other_agents = [a.name for a in session.negotiators if a.id != negotiator.id]
+        pair = tuple(sorted(other_agents))
+        key = (pair, agent_name)
+
+        performance_against_pairs.setdefault(key, []).append(utility)
+        total_sessions[agent_name] += 1
+
+    proposer = session.state.current_proposer
+
+    if session.agreement is not None:
+        print("    Final Agreement:", session.agreement)
+        for negotiator in session.negotiators:
+            role = "Proposer" if negotiator.id == proposer else "Responder"
+            ufun_value = negotiator.ufun(session.agreement)
+            utilities[negotiator.name].append(ufun_value)
+            utilities_on_agreement[negotiator.name].append(ufun_value)
+            agreements_reached[negotiator.name] += 1
+            print(f"    {role} - Negotiator '{negotiator.name}' (ID: {negotiator.id}) Utility: {ufun_value:.4f}")
+    else:
+        print("    No agreement reached in the session.")
+        for negotiator in session.negotiators:
+            utilities[negotiator.name].append(negotiator.reserved_value)
+            print("NO AGREEMENT")
+            print(negotiator.reserved_value)
+
+def print_utility_statistics(utilities, utilities_on_agreement, total_sessions, agreements_reached):
+    print("\n### Utility Statistics ###")
     for name, values in utilities.items():
         if values:
             mean_utility = statistics.mean(values)
-            variance = statistics.variance(values) if len(values) > 1 else 0
+            utility_on_agreement = statistics.mean(utilities_on_agreement[name]) if name in utilities_on_agreement else 0
             std_dev = statistics.stdev(values) if len(values) > 1 else 0
-            std_error = std_dev / math.sqrt(len(values)) if len(values) > 1 else 0  # Standard Error (SE)
-            times_proposer = proposer_count[name]
+            std_error = std_dev / math.sqrt(len(values)) if len(values) > 1 else 0
+            agreement = (agreements_reached[name] / total_sessions[name]) * 100 if total_sessions[name] > 0 else 0
         else:
-            mean_utility, variance, std_dev, std_error, times_proposer = 0, 0, 0, 0, 0
+            mean_utility, utility_on_agreement, std_error, agreement = 0, 0, 0, 0
 
-        print(
-            f"{name}: Mean = {mean_utility:.4f}, Variance = {variance:.4f}, Std Dev = {std_dev:.4f}, Std Error = {std_error:.4f}, Times Proposer = {times_proposer:.4f}")
+        print(f"{name}: Mean Utility = {mean_utility:.4f}, Utility_on_agreement = {utility_on_agreement:.4f},"
+              f" Std Error = {std_error:.4f}, Agreement = {agreement:.4f}%")
 
-    agreement_rate = (agreements_reached / total_sessions) * 100 if total_sessions > 0 else 0
-    print(f"\nAgreement reached {agreement_rate:.2f}% of the times.")
-    print(f"\nTotal sessions: {total_sessions}")
+def print_performance_against_pairs(performance_against_pairs):
+    print("\n### Sorted Performance Against Pairs ###")
 
-from datetime import datetime
+    pair_to_agents = {}
+    for (pair, agent), values in performance_against_pairs.items():
+        mean_utility = sum(values) / len(values)
+        pair_to_agents.setdefault(pair, []).append((agent, mean_utility))
+
+    for pair in sorted(pair_to_agents.keys()):
+        print(f"\nAgainst pair {pair}:")
+        sorted_agents = sorted(pair_to_agents[pair], key=lambda x: x[1], reverse=True)
+        for agent, mean_utility in sorted_agents:
+            print(f"  Agent {agent} → average utility: {mean_utility:.4f}")
+
+def get_best_agents_against_pairs(performance_against_pairs):
+    best_agents = {}
+
+    pair_to_agents = {}
+    for (pair, agent), values in performance_against_pairs.items():
+        mean_utility = sum(values) / len(values)
+        pair_to_agents.setdefault(pair, []).append((agent, mean_utility))
+
+    for pair, agent_utils in pair_to_agents.items():
+        agent_utils.sort(key=lambda x: x[1], reverse=True)
+        best_agents[pair] = agent_utils[0][0]
+
+    return best_agents
+
+def simulate_best_response_dynamics(agent_names, best_agents_by_pair, max_steps=20, seed=None):
+    if seed is not None:
+        random.seed(seed)
+
+    state = tuple(random.choices(agent_names, k=3))
+    seen_states = set()
+    transitions = []
+
+    for step in range(max_steps):
+        seen_states.add(state)
+        current_state = list(state)
+
+        for player in range(3):
+            others = tuple(sorted([current_state[i] for i in range(3) if i != player]))
+            best_response = best_agents_by_pair.get(others)
+
+            if best_response and best_response != current_state[player]:
+                next_state = current_state.copy()
+                next_state[player] = best_response
+                next_state = tuple(next_state)
+                transitions.append((state, next_state, player))
+                state = next_state
+                break
+        else:
+            break
+
+    return transitions, state
+
+def plot_nash_equilibrium_graph(transitions, final_state):
+    G = nx.DiGraph()
+
+    for from_state, to_state, player in transitions:
+        G.add_edge(from_state, to_state, label=f"P{player + 1}")
+
+    #pos = nx.spring_layout(G, seed=42, k=2.0, iterations=300, scale=5.0)
+    pos = nx.kamada_kawai_layout(G)
+    node_colors = ['lightgreen' if node == final_state else 'lightblue' for node in G.nodes()]
+    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=1000, edgecolors='black')
+
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        connectionstyle="arc3,rad=0.1",
+        arrows=True,
+        arrowstyle='-|>',
+        arrowsize=10,
+        width=1.5,
+        edge_color='gray',
+        min_source_margin=15,
+        min_target_margin=15
+    )
+    nx.draw_networkx_labels(G, pos, font_size=8, verticalalignment='center')
+
+    edge_labels = nx.get_edge_attributes(G, 'label')
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8, label_pos=0.5)
+
+    plt.title("Best-Response Dynamics → Nash Equilibrium", fontsize=14)
+    plt.axis('off')
+    plt.tight_layout(pad=3.0)
+    plt.margins(x=0.3, y=0.3)
+
+    plt.show()
 
 if __name__ == "__main__":
     start_time = datetime.now()
     print(f"Start Time: {start_time}")
 
-    ANAC2015_scenarios_test()
-    #run_test()
+    performance_against_pairs = ANAC2015_scenarios_test()
+    #performance_against_pairs = #performance pairs txt
+    agent_names = ["Agreeable", "PonPoko", "Atlas3", "Micro"]
+    best_agents_by_pair = get_best_agents_against_pairs(performance_against_pairs)
+
+    transitions, final_state = simulate_best_response_dynamics(agent_names, best_agents_by_pair)
+    plot_nash_equilibrium_graph(transitions, final_state)
+
     end_time = datetime.now()
     print(f"End Time: {end_time}")
     print(f"Execution Time: {end_time - start_time}")
-

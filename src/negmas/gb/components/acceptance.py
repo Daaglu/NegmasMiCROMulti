@@ -354,7 +354,22 @@ class MiCROAcceptancePolicyMulti(AcceptancePolicy):
             else self.negotiator.ufun.is_better
         )
         if is_acceptable(offer, mine):
+            self.offering_strategy.add_accepted_offer(offer)
+            '''
+            print("I AM:")
+            print(self.negotiator)
+            print("THE OFFERS BEEN MADE BY:")
+            print(state.last_negotiator)
+            print("I ACCEPT")
+            '''
             return ResponseType.ACCEPT_OFFER
+        '''
+        print("I AM:")
+        print(self.negotiator)
+        print("THE OFFERS BEEN MADE BY:")
+        print(state.last_negotiator)
+        print("REJECTED")
+        '''
         return ResponseType.REJECT_OFFER
 
 
